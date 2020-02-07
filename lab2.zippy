@@ -1,0 +1,13 @@
+location: "xv6-public"
+files:
+- syscall.h
+- syscall.c
+- user.h
+- usys.S
+- proc.c
+- sysproc.c
+- Makefile
+- condvar.h
+- defs.h
+- ulib.c
+output: "lab2.zip"
