@@ -135,14 +135,12 @@ struct ProgramState {
     int guide_id;
     int remaining_tour_guides;
     int remaining_visitors;
-    int tour_guide_just_arrived;
     struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
     struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
     struct cs1550_sem *opening_sem; // protects museum_opened
     struct cs1550_sem *visitor_slots; // used to keep track of how many visitors there are
     struct cs1550_sem *tour_guides; // used to prevent more than 2 tour guides from entering at once
     struct cs1550_sem *empty_museum; // used to alert the tour guides when the musem is emptied
-    struct cs1550_sem *waiting_guides_sem; // protects waiting_guides
 };
 
 // TODO(joshua.spisak): functions to create this struct and to free it at end
@@ -154,7 +152,6 @@ struct ProgramState *createProgramState() {
     new_state->tour_guides = create_sem(2);
     new_state->visitors_present_sem = create_sem(1);
     new_state->empty_museum = create_sem(0);
-    new_state->waiting_guides_sem = create_sem(1);
     new_state->museum_opened = 0;
     new_state->visitors_present = 0;
     new_state->waiting_guides = 0;
@@ -163,7 +160,6 @@ struct ProgramState *createProgramState() {
     new_state->guide_id = 0;
     new_state->remaining_tour_guides = 0;
     new_state->visitors_pending = 0;
-    new_state->tour_guide_just_arrived = 0;
     return new_state;
 }
 
@@ -174,7 +170,6 @@ void freeProgramState(struct ProgramState *state) {
     free_sem(state->tour_guides);
     free_sem(state->visitors_present_sem);
     free_sem(state->empty_museum);
-    free_sem(state->waiting_guides_sem);
     munmap(state, sizeof(struct ProgramState));
 }
 
@@ -243,7 +238,7 @@ void tourguideArrives() {
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
-    if(!state->museum_opened) { // will only happen once
+    if(state->museum_opened == 0) { // will only happen once
         if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
             up(state->opening_sem);
             up(state->tour_guides);
