@@ -256,16 +256,18 @@ void tourMuseum() {
 // [x] must print "Tour guide %d opens the museum for tours at time %d."
 void openMuseum() {
     down(state->opening_sem); // protect museum opening
-    printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
-    // if(state->museum_opened == 0) { // will only happen once
-    //     if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
-    //         up(state->opening_sem);
-    //         up(state->tour_guides);
-    //         exit(0);
-    //     }
-    //     down(state->visitors_arrived);
-    //     state->museum_opened = 1;
-    // }
+    if(state->museum_opened == 0) { // will only happen once
+        if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
+            up(state->opening_sem);
+            up(state->tour_guides);
+            exit(0);
+        }
+        down(state->visitors_arrived);
+        state->museum_opened = 1;
+        printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
+    } else {
+        printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
+    }
     up(state->opening_sem);
 }
 
