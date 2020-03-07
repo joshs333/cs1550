@@ -196,8 +196,6 @@ int visitor_guide_id;
 void visitorArrives() {
     int need_sem_again = 0;
     down(state->visitors_present_sem);
-    // sample visitor_guide_id once at time of arrival (to correct order)
-    visitor_guide_id = state->visitor_id++;
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     state->visitors_pending += 1;
     up(state->visitors_arrived); // alerts the tour guide that visitors have arrived.
@@ -233,8 +231,6 @@ void tourguideArrives() {
     down(state->tour_guides); // wait if there are already 2
     down(state->visitors_present_sem);
     state->tour_guides_present += 1;
-    // sample visitor_guide_id at time of arrival
-    visitor_guide_id = state->guide_id++;
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_present_sem);
 }
@@ -246,7 +242,6 @@ void tourguideArrives() {
 // [x] must print "Visitor %d tours the museum at time %d."
 void tourMuseum() {
     // sample again at time of tour to make sure visitors tour in correct order
-    visitor_guide_id = state->tour_visitor_id++;
     printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
     sleep(2);
 }
@@ -314,8 +309,16 @@ void tourguideLeaves() {
     printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time());
     state->tour_guides_present -= 1;
     state->remaining_tour_guides -= 1;
-    if(state->tour_guides_present == 0)
+    if(state->tour_guides_present == 0) {
+        if(state->visitors_pending > 0)
+            while(get_value(state->visitors_arrived) > 1)
+                down(state->visitors_arrived);
+        else
+            while(get_value(state->visitors_arrived) > 0)
+                down(state->visitors_arrived);
+        state->museum_opened = 0;
         printf("The museum is now empty.\n");
+    }
     if(state->remaining_tour_guides == 0) {
         int i = 0;
         for(i = 0; i < state->remaining_visitors + 10; ++i) // this can overshoot...
@@ -342,7 +345,7 @@ void visitorProcess() {
     int i;
     for(i = 0; i < state->visitor_count; ++i) {
         if(fork() == 0) {
-            visitor_guide_id = i + 1;
+            visitor_guide_id = i;
             visitorArrives();
             tourMuseum();
             visitorLeaves();
@@ -368,7 +371,7 @@ void tourguideProcess() {
     int i;
     for(i = 0; i < state->tour_guide_count; ++i) {
         if(fork() == 0) {
-            visitor_guide_id = i + 1;
+            visitor_guide_id = i;
             tourguideArrives();
             openMuseum();
             down(state->visitors_present_sem);
