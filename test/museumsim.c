@@ -136,6 +136,7 @@ struct ProgramState {
     int remaining_tour_guides;
     int remaining_visitors;
     int just_incremented;
+    int tour_visitor_id;
     struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
     struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
     struct cs1550_sem *opening_sem; // protects museum_opened
@@ -158,6 +159,7 @@ struct ProgramState *createProgramState() {
     new_state->waiting_guides = 0;
     new_state->tour_guides_present = 0;
     new_state->visitor_id = 0;
+    new_state->tour_visitor_id = 0;
     new_state->guide_id = 0;
     new_state->remaining_tour_guides = 0;
     new_state->visitors_pending = 0;
@@ -269,6 +271,7 @@ void tourguideArrives() {
 // [x] must not block other tourists in the museum
 // [x] must print "Visitor %d tours the museum at time %d."
 void tourMuseum() {
+    visitor_guide_id = state->tour_visitor_id++;
     printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
     sleep(2);
 }
