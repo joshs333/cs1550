@@ -3,13 +3,12 @@
  * @brief simulates a museum with visitors, project 2 for cs1550
  * @author Joshua Spisak <jjs231@pitt.edu>
  * @details Reqs:
- *          [ ] must use semaphores
- *          [ ] should not busy wait (use a condition variable)
- *          [ ] should be deadlock free
- *          [ ] tour guides and visitors should be numbered sequentially from 0
- *          [ ] When the museum is empty print "The museum is now empty."
+ *          [x] must use semaphores
+ *          [x] should not busy wait (use a condition variable)
+ *          [x] should be deadlock free
+ *          [x] tour guides and visitors should be numbered sequentially from 0
+ *          [x] When the museum is empty print "The museum is now empty."
  *****************************************************************************/
-// #define USE_PTHREAD true // Allows debugging without using qemu
 #include "sem.h"
 #include "unistd.h"
 #ifdef USE_PTHREAD
@@ -93,7 +92,7 @@ int get_int_arg(int argc, char** argv, char* flag, int *ret_val) {
 
 // TODO(joshua.spisak): random function (integer percent probability)
 int run_prob(int probability, int mod) {
-    return (rand() % mod) < probability; 
+    return (rand() % mod + 1) < probability; 
 }
 
 // TODO(joshua.spisak): function to start clock and sample time
@@ -125,11 +124,22 @@ struct ProgramState {
     int prob_guide;
     int delay_guide;
     int seed_guide;
+
+    //! Program Run Variables
     int museum_opened;
-    struct cs1550_sem *visitors_arrived;
-    struct cs1550_sem *opening_sem;
-    struct cs1550_sem *visitor_slots;
-    struct cs1550_sem *tour_guides;
+    int visitors_present;
+    int visitors_pending;
+    int waiting_guides;
+    int tour_guides_present;
+    int visitor_id;
+    int guide_id;
+    struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
+    struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
+    struct cs1550_sem *opening_sem; // protects museum_opened
+    struct cs1550_sem *visitor_slots; // used to keep track of how many visitors there are
+    struct cs1550_sem *tour_guides; // used to prevent more than 2 tour guides from entering at once
+    struct cs1550_sem *empty_museum; // used to alert the tour guides when the musem is emptied
+    struct cs1550_sem *waiting_guides_sem; // protects waiting_guides
 };
 
 // TODO(joshua.spisak): functions to create this struct and to free it at end
@@ -139,7 +149,15 @@ struct ProgramState *createProgramState() {
     new_state->opening_sem = create_sem(1);
     new_state->visitor_slots = create_sem(0);
     new_state->tour_guides = create_sem(2);
+    new_state->visitors_present_sem = create_sem(1);
+    new_state->empty_museum = create_sem(0);
+    new_state->waiting_guides_sem = create_sem(1);
     new_state->museum_opened = 0;
+    new_state->visitors_present = 0;
+    new_state->waiting_guides = 0;
+    new_state->tour_guides_present = 0;
+    new_state->visitor_id = 0;
+    new_state->guide_id = 0;
     return new_state;
 }
 
@@ -148,6 +166,9 @@ void freeProgramState(struct ProgramState *state) {
     free_sem(state->opening_sem);
     free_sem(state->visitor_slots);
     free_sem(state->tour_guides);
+    free_sem(state->visitors_present_sem);
+    free_sem(state->empty_museum);
+    free_sem(state->waiting_guides_sem);
     munmap(state, sizeof(struct ProgramState));
 }
 
@@ -160,15 +181,32 @@ int visitor_guide_id;
 
 // Reqs:
 // [x] must block until there is also a tour guide
-// [ ] called by visitor process
-// [ ] must wait if museum is closed
-// [ ] must wait if there is the max # of visitors has been reached
+// [x] called by visitor process
+// [x] must wait if museum is closed
+// [x] must wait if there is the max # of visitors has been reached
 // [x] must print "Visitor %d arrives at time %d." at arrival
 // [x] first visitor always arrives a time 0
 void visitorArrives() {
+    int need_sem_again = 0;
+    down(state->visitors_present_sem);
+    // sample visitor_guide_id at time of arrival
+    visitor_guide_id = state->visitor_id++;
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_arrived);
-    down(state->visitor_slots);
+    state->visitors_pending += 1;
+    if(get_value(state->visitor_slots) <= 0) {
+        need_sem_again = 1;
+        up(state->visitors_present_sem); // free this semaphore
+    }
+    // will not be available until museum is open and a tour guide has arrived
+    // can only be upped if there are available visitor slots (max has not been reached)
+    down(state->visitor_slots); 
+
+    if(need_sem_again)
+        down(state->visitors_present_sem);
+    state->visitors_pending -= 1;
+    state->visitors_present += 1;
+    up(state->visitors_present_sem);
 }
 
 // Reqs:
@@ -185,8 +223,13 @@ void openMuseum() {
 // [x] must wait if there are already 2 tour guides in the museum
 // [x] must print "Tour guide %d arrives at time %d" at arrival
 void tourguideArrives() {
-    printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     down(state->tour_guides); // wait if there are already 2
+    down(state->visitors_present_sem);
+    state->tour_guides_present += 1;
+    // sample visitor_guide_id at time of arrival
+    visitor_guide_id = state->guide_id++;
+    printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
+    up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
     if(!state->museum_opened) { // will only happen once
         down(state->visitors_arrived);
@@ -213,18 +256,47 @@ void tourMuseum() {
 // Reqs:
 // [x] must print "Visitor %d leaves the museum at time %d"
 void visitorLeaves() {
+    down(state->visitors_present_sem);
     printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time());
-    // Provide mechanism to alert tourguide that noone is present
+    state->visitors_present -= 1;
+    if(state->visitors_present == 0) {
+        // alert the tour guides that all the visitors have left
+        while(state->waiting_guides > 0) {
+            up(state->empty_museum);
+            state->waiting_guides -= 1;
+        }
+    }
+    up(state->visitors_present_sem);
 }
 
 // Reqs:
 // [ ] tour guide cannot leave museum until all visitors in museum leave
 // [ ] prints "Tour guide %d leaves the museum at time %d"
 void tourguideLeaves() {
-    // waits for visitor_count to go to 0
-
+    down(state->visitors_present_sem);
+    while(state->visitors_present > 0) {
+        state->waiting_guides += 1;
+        up(state->visitors_present_sem);
+        // waits for visitor_count to go to 0
+        down(state->empty_museum);
+        down(state->visitors_present_sem);
+        // between waking and getting the visitors_present_sem, more visitors may have entered
+        // so we will check again....
+        if(state->visitors_present == 0) {
+            // Remove tour guide slots
+            while(get_value(state->visitor_slots) > 0) {
+                down(state->visitor_slots);
+            }
+            break;
+        }
+        up(state->visitors_present_sem);
+    }
     printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time());
+    state->tour_guides_present -= 1;
+    if(state->tour_guides_present == 0)
+        printf("The museum is now empty.\n");
     up(state->tour_guides);
+    up(state->visitors_present_sem);
 }
 
 
@@ -249,7 +321,7 @@ void visitorProcess() {
             visitorArrives();
             tourMuseum();
             visitorLeaves();
-            return;
+            exit(0);
         } else {
             if(!run_prob(state->prob_visitor, 100)) {
                 sleep(state->delay_visitor);
@@ -274,7 +346,7 @@ void tourguideProcess() {
             visitor_guide_id = i + 1;
             tourguideArrives();
             tourguideLeaves();
-            return;
+            exit(0);
         } else {
             if(!run_prob(state->prob_guide, 100)) {
                 sleep(state->delay_guide);
@@ -315,7 +387,6 @@ int main(int argc, char** argv) {
             wait(NULL);
         }
     }
-    printf("The museum is now empty.\n");
 
     freeProgramState(state);
 }
