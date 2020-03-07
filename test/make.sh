@@ -3,4 +3,4 @@ if [ -e build/ ]; then
 fi
 mkdir build/
 
-gcc -m32 -o build/museumsim museumsim.c
+gcc -m32 -o build/museumsim museumsim.c -lpthread

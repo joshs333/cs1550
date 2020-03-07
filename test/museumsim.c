@@ -9,12 +9,13 @@
  *          [ ] tour guides and visitors should be numbered sequentially from 0
  *          [ ] When the museum is empty print "The museum is now empty."
  *****************************************************************************/
+// #define USE_PTHREAD true // Allows debugging without using qemu
 #include "sem.h"
 #include "unistd.h"
-// I will use pthread semaphores so I can code / test without the qemu machine
-// Then switch to the custom implementation for submission
-#include <pthread.h>
-#include <semaphore.h>
+#ifdef USE_PTHREAD
+    #include <pthread.h>
+    #include <semaphore.h>
+#endif
 #include <stdio.h> // printf()
 #include <stdlib.h> // rand() srand()
 #include <sys/mman.h> // mmap()
@@ -23,30 +24,56 @@
 
 
 /************************** Utility Functions    *****************************/
-// Borrowed from the homework
+// downs/waits a semaphore
 void down(struct cs1550_sem *sem) {
-    // syscall(__NR_cs1550_down, sem);
-    sem_wait((sem_t *) sem);
+    #ifdef USE_PTHREAD
+        sem_wait((sem_t *) sem);
+    #else
+        syscall(__NR_cs1550_down, sem);
+    #endif
 }
 
-// Borrowed from the homework
+// Ups/posts a semaphore
 void up(struct cs1550_sem *sem) {
-    // syscall(__NR_cs1550_up, sem);
-    sem_post((sem_t *) sem);
+    #ifdef USE_PTHREAD
+        sem_post((sem_t *) sem);
+    #else
+        syscall(__NR_cs1550_up, sem);
+    #endif
 }
 
 // Creates a semaphore and initializes it to a given value
 struct cs1550_sem *create_sem(int value) {
-    void *new_sem = mmap(NULL, sizeof(sem_t), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
-    sem_init(new_sem, 1, value);
-    return new_sem;
+    #ifdef USE_PTHREAD
+        void *new_sem = mmap(NULL, sizeof(sem_t), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
+        sem_init(new_sem, 1, value);
+        return new_sem;
+    #else
+        struct cs1550_sem *new_sem = mmap(NULL, sizeof(struct cs1550_sem), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
+        new_sem->value = value;
+        return new_sem;
+    #endif
+}
+
+// Frees a semaphore
+void free_sem(struct cs1550_sem *sem) {
+    #ifdef USE_PTHREAD
+        sem_destroy((sem_t *)sem);
+        munmap(sem, sizeof(sem_t));
+    #else
+        munmap(sem, sizeof(struct cs1550_sem));
+    #endif
 }
 
 // Gets the value of a semaphore
 int get_value(struct cs1550_sem *sem) {
-    int ret_val;
-    sem_getvalue((sem_t *)sem, &ret_val);
-    return ret_val;
+    #ifdef USE_PTHREAD
+        int ret_val;
+        sem_getvalue((sem_t *)sem, &ret_val);
+        return ret_val;
+    #else
+        return sem->value;
+    #endif
 }
 
 // Gets an integer from command line arguments
@@ -89,38 +116,57 @@ int get_time() {
 // TODO(joshua.spisak): define structs containing all of the program state
 //      variables that can all be allocated at once
 struct ProgramState {
-    int remaining_visitors;
-    int remaining_tour_guides;
+    //! Program arguments
+    int visitor_count;
+    int tour_guide_count;
     int prob_visitor;
     int delay_visitor;
     int seed_visitor;
     int prob_guide;
     int delay_guide;
     int seed_guide;
+    int museum_opened;
+    struct cs1550_sem *visitors_arrived;
+    struct cs1550_sem *opening_sem;
+    struct cs1550_sem *visitor_slots;
+    struct cs1550_sem *tour_guides;
 };
 
 // TODO(joshua.spisak): functions to create this struct and to free it at end
 struct ProgramState *createProgramState() {
-    void *new_state = mmap(NULL, sizeof(struct ProgramState), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
-
+    struct ProgramState *new_state = mmap(NULL, sizeof(struct ProgramState), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
+    new_state->visitors_arrived = create_sem(0);
+    new_state->opening_sem = create_sem(1);
+    new_state->visitor_slots = create_sem(0);
+    new_state->tour_guides = create_sem(2);
     return new_state;
 }
 
 void freeProgramState(struct ProgramState *state) {
+    free_sem(state->visitors_arrived);
+    free_sem(state->opening_sem);
+    free_sem(state->visitor_slots);
+    free_sem(state->tour_guides);
     munmap(state, sizeof(struct ProgramState));
 }
 
 /************************** Program Functions    *****************************/
+// Data that is needed to run the different functions
+// Shared between processes
 struct ProgramState *state;
+// Specific to each process
+int visitor_guide_id;
 
 // Reqs:
 // [ ] must block until there is also a tour guide
 // [ ] called by visitor process
 // [ ] must wait if museum is closed
 // [ ] must wait if there is the max # of visitors has been reached
-// [ ] must print "Visitor %d arrives at time %d." at arrival
-// [ ] first visitor always arrives a time 0
+// [x] must print "Visitor %d arrives at time %d." at arrival
+// [x] first visitor always arrives a time 0
 void visitorArrives() {
+    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
+    up(state->visitors_arrived);
     // lock(visitors_arrived);
     // visitors_arrived = true;
     // unlock(visitors_arrived);
@@ -133,20 +179,33 @@ void visitorArrives() {
 }
 
 // Reqs:
+// [ ] must be called after tourguideArrives
+// [ ] must print "Tour guide %d opens the museum for tours at time %d."
+void openMuseum() {
+    printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
+}
+
+// Reqs:
 // [ ] must block until there is also a visitor
 // [ ] called by tour guide process
 // [ ] must wait if museum is closed
 // [ ] must wait if there are already 2 tour guides in the museum
 // [ ] must print "Tour guide %d arrives at time %d" at arrival
 void tourguideArrives() {
-    // lock(opening)
-    // if(not opened)
-    //     openMuseum()
-    // unlock(opening)
+    printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
+    down(state->tour_guides);
+    down(state->opening_sem);
+    if(!state->museum_opened) {
+        // will only happen once
+        down(state->visitors_arrived);
+        state->museum_opened = 1;
+        openMuseum();
+    }
+    up(state->opening_sem);
 
-    // print("tour guide arrives");
-    // for(int i = 0; i < 10; ++i)
-    //     up(tour_slots);
+    int i;
+    for(i = 0; i < 10; ++i)
+        up(state->visitor_slots);
 }
 
 // Reqs:
@@ -155,20 +214,14 @@ void tourguideArrives() {
 // [ ] must not block other tourists in the museum
 // [ ] must print "Visitor %d tours the museum at time %d."
 void tourMuseum() {
-    // sleep(2);
+    printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
+    sleep(2);
 }
 
 // Reqs:
-// [ ] must be called after tourguideArrives
-// [ ] must print "Tour guide %d opens the museum for tours at time %d."
-void openMuseum() {
-    // print("tour guide opens stuff")
-}
-
-// Reqs:
-// [ ] must print "Visitor %d leaves the museum at time %d"
+// [x] must print "Visitor %d leaves the museum at time %d"
 void visitorLeaves() {
-    // print("Visitor leaves ...")
+    printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time());
     // lock(tour_slots_used);
     // --tour_slots_used;
     // if(tour_slots_used == 0)
@@ -184,6 +237,7 @@ void visitorLeaves() {
 void tourguideLeaves() {
     // waits for visitor_count to go to 0
     // all tours slots used or all visitors have left (uped a mutex?)
+    up(state->tour_guides);
 }
 
 
@@ -200,17 +254,23 @@ void tourguideLeaves() {
 //   pv (percent chance of an arrival following a given one)
 //   dv (wait until next arrival)
 void visitorProcess() {
+    srand(state->seed_visitor);
     int i;
-    for(i = 0; i < state->remaining_visitors; ++i) {
+    for(i = 0; i < state->visitor_count; ++i) {
         if(fork() == 0) {
-            printf("i am a visitor %d\n", i);
-            break;
+            visitor_guide_id = i + 1;
+            visitorArrives();
+            tourMuseum();
+            visitorLeaves();
+            return;
         } else {
-            sleep(1);
+            if(!run_prob(state->prob_visitor, 100)) {
+                sleep(state->delay_visitor);
+            }
         }
     }
 
-    for(i = 0; i < state->remaining_visitors; ++i) {
+    for(i = 0; i < state->visitor_count; ++i) {
         wait(NULL);
     }
 }
@@ -220,17 +280,22 @@ void visitorProcess() {
 // [ ] when a tour guide arrives there is a pg chance that another tour guide is immediately following them
 // [ ] when a tour guide does not arrive there is a dg second delay before the next tour guide arrives
 void tourguideProcess() {
+    srand(state->seed_guide);
     int i;
-    for(i = 0; i < state->remaining_tour_guides; ++i) {
+    for(i = 0; i < state->tour_guide_count; ++i) {
         if(fork() == 0) {
-            printf("i am a tour guide %d\n", i);
+            visitor_guide_id = i + 1;
+            tourguideArrives();
+            tourguideLeaves();
             return;
         } else {
-            sleep(1);
+            if(!run_prob(state->prob_guide, 100)) {
+                sleep(state->delay_guide);
+            }
         }
     }
 
-    for(i = 0; i < state->remaining_tour_guides; ++i) {
+    for(i = 0; i < state->tour_guide_count; ++i) {
         wait(NULL);
     }
 }
@@ -240,8 +305,8 @@ int main(int argc, char** argv) {
     // init time to program start
     get_time();
     state = createProgramState();
-    get_int_arg(argc, argv, "-m", &state->remaining_visitors);
-    get_int_arg(argc, argv, "-t", &state->remaining_tour_guides);
+    get_int_arg(argc, argv, "-m", &state->visitor_count);
+    get_int_arg(argc, argv, "-t", &state->tour_guide_count);
     get_int_arg(argc, argv, "-pv", &state->prob_visitor);
     get_int_arg(argc, argv, "-dv", &state->delay_visitor);
     get_int_arg(argc, argv, "-sv", &state->seed_visitor);
@@ -251,11 +316,11 @@ int main(int argc, char** argv) {
 
     int pid = fork();
     if(pid == 0) {
-        visitorProcess();
+        tourguideProcess();
     } else {
         pid = fork();
         if(pid == 0) {
-            tourguideProcess();
+            visitorProcess();
         } else {
             wait(NULL);
             wait(NULL);
