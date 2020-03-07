@@ -192,6 +192,7 @@ void visitorArrives() {
     down(state->visitors_present_sem);
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->visitor_id++;
+    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     state->visitors_pending += 1;
     up(state->visitors_arrived); // alerts the tour guide that visitors have arrived.
     if(get_value(state->visitor_slots) <= 0) {
@@ -209,7 +210,6 @@ void visitorArrives() {
         up(state->visitors_present_sem);
         exit(0); // We should exit now because there will be no more tours
     }
-    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     state->visitors_pending -= 1;
     state->remaining_visitors -= 1;
     state->visitors_present += 1;
@@ -251,7 +251,7 @@ void tourguideArrives() {
     up(state->opening_sem);
 
     int i;
-    for(i = 0; i < 10; ++i)
+    for(i = 0; i < 9; ++i)
         up(state->visitor_slots); // Provide 10 slots for visitors
 }
 
@@ -288,11 +288,13 @@ void tourguideLeaves() {
     down(state->visitors_present_sem);
     while(1) {
         int visitors_pending = (state->visitors_pending > 0 && get_value(state->visitor_slots) > 0);
+        // printf("B%d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
         if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
             while(get_value(state->visitor_slots) > 0) {
                 down(state->visitor_slots);
             }
+            // printf("A: %d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
             break;
         }
         state->waiting_guides += 1;
