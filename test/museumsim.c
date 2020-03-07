@@ -135,6 +135,7 @@ struct ProgramState {
     int guide_id;
     int remaining_tour_guides;
     int remaining_visitors;
+    int just_incremented;
     struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
     struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
     struct cs1550_sem *opening_sem; // protects museum_opened
@@ -160,6 +161,7 @@ struct ProgramState *createProgramState() {
     new_state->guide_id = 0;
     new_state->remaining_tour_guides = 0;
     new_state->visitors_pending = 0;
+    new_state->just_incremented = 0;
     return new_state;
 }
 
@@ -210,6 +212,7 @@ void visitorArrives() {
         up(state->visitors_present_sem);
         exit(0); // We should exit now because there will be no more tours
     }
+    state->just_incremented = 0;
     state->visitors_pending -= 1;
     state->remaining_visitors -= 1;
     state->visitors_present += 1;
@@ -250,6 +253,11 @@ void tourguideArrives() {
     }
     up(state->opening_sem);
 
+
+
+    down(state->visitors_present_sem);
+    state->just_incremented = 1;
+    up(state->visitors_present_sem);
     int i;
     for(i = 0; i < 9; ++i)
         up(state->visitor_slots); // Provide 10 slots for visitors
@@ -287,7 +295,7 @@ void visitorLeaves() {
 void tourguideLeaves() {
     down(state->visitors_present_sem);
     while(1) {
-        int visitors_pending = (state->visitors_pending > 0 && get_value(state->visitor_slots) > 0);
+        int visitors_pending = (state->visitors_pending > 0 && state->just_incremented);
         printf("B%d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
         if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
