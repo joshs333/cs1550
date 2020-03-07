@@ -194,9 +194,9 @@ int visitor_guide_id;
 void visitorArrives() {
     int need_sem_again = 0;
     down(state->visitors_present_sem);
-    // sample visitor_guide_id at time of arrival
+    // sample visitor_guide_id once at time of arrival
     visitor_guide_id = state->visitor_id++;
-    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
+    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time()); fflush();
     state->visitors_pending += 1;
     up(state->visitors_arrived); // alerts the tour guide that visitors have arrived.
     if(get_value(state->visitor_slots) <= 0) {
@@ -225,8 +225,7 @@ void visitorArrives() {
 // [x] must be called after tourguideArrives
 // [x] must print "Tour guide %d opens the museum for tours at time %d."
 void openMuseum() {
-    printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
-    sleep(1);
+    printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time()); fflush();
 }
 
 // Reqs:
@@ -241,7 +240,7 @@ void tourguideArrives() {
     state->tour_guides_present += 1;
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->guide_id++;
-    printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
+    printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time()); fflush();
     up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
     if(state->museum_opened == 0) { // will only happen once
@@ -272,8 +271,9 @@ void tourguideArrives() {
 // [x] must not block other tourists in the museum
 // [x] must print "Visitor %d tours the museum at time %d."
 void tourMuseum() {
-    visitor_guide_id = state->tour_visitor_id++;
-    printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
+    // sample again at time of tour to make sure visitors tour in correct order
+    // visitor_guide_id = state->tour_visitor_id++;
+    printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time()); fflush();
     sleep(2);
 }
 
@@ -281,7 +281,7 @@ void tourMuseum() {
 // [x] must print "Visitor %d leaves the museum at time %d"
 void visitorLeaves() {
     down(state->visitors_present_sem);
-    printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time());
+    printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time()); fflush();
     state->visitors_present -= 1;
     if(state->visitors_present == 0) {
         // alert the tour guides that all the visitors have left
@@ -317,11 +317,12 @@ void tourguideLeaves() {
         // between waking and getting the visitors_present_sem, more visitors may have entered
         // so we will check again at the top of the loop...
     }
-    printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time());
+    printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time()); fflush();
     state->tour_guides_present -= 1;
     state->remaining_tour_guides -= 1;
-    if(state->tour_guides_present == 0)
-        printf("The museum is now empty.\n");
+    if(state->tour_guides_present == 0) {
+        printf("The museum is now empty.\n"); fflush();
+    }
     if(state->remaining_tour_guides == 0) {
         int i = 0;
         for(i = 0; i < state->remaining_visitors + 10; ++i) // this can overshoot...
@@ -330,7 +331,6 @@ void tourguideLeaves() {
     up(state->tour_guides);
     up(state->visitors_present_sem);
 }
-
 
 /************************** Process Functions    *****************************/
 
@@ -408,7 +408,7 @@ int main(int argc, char** argv) {
     state->remaining_visitors = state->visitor_count;
 
     // museum is currently empty...
-    printf("The museum is now empty.\n");
+    printf("The museum is now empty.\n"); fflush();
     int pid = fork();
     if(pid == 0) {
         tourguideProcess();
