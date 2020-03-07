@@ -76,6 +76,7 @@ int get_value(struct cs1550_sem *sem) {
 }
 
 // Gets an integer from command line arguments
+// Returns 0 if it isn't found, 1 if it is.
 int get_int_arg(int argc, char** argv, char* flag, int *ret_val) {
     int i;
     for(i = 0; i < argc; ++i) {
@@ -90,12 +91,13 @@ int get_int_arg(int argc, char** argv, char* flag, int *ret_val) {
     return 0;
 }
 
-// TODO(joshua.spisak): random function (integer percent probability)
+
 int run_prob(int probability, int mod) {
     return (rand() % mod + 1) < probability; 
 }
 
-// TODO(joshua.spisak): function to start clock and sample time
+// inits the time reference on the first call
+// returns the seconds passed since the first call, first call returns 0 (duh)
 struct timeval tv_start;
 int time_init = 0;
 int get_time() {
@@ -103,8 +105,8 @@ int get_time() {
         gettimeofday(&tv_start, NULL);
         time_init = 1;
         // Modify the time once to make calculations easier later
-        tv_start.tv_sec += 1;
-        tv_start.tv_usec = 1000000 - tv_start.tv_usec;
+        tv_start.tv_sec += 1; //  upper second mark
+        tv_start.tv_usec = 1000000 - tv_start.tv_usec; // additional miscroseconds before upper second mark
     }
     struct timeval tv_now;
     gettimeofday(&tv_now, NULL);
@@ -112,8 +114,7 @@ int get_time() {
 }
 
 /************************** Program State        *****************************/
-// TODO(joshua.spisak): define structs containing all of the program state
-//      variables that can all be allocated at once
+// all of the variables required for program operation
 struct ProgramState {
     //! Program arguments
     int visitor_count;
@@ -145,7 +146,7 @@ struct ProgramState {
     struct cs1550_sem *empty_museum; // used to alert the tour guides when the musem is emptied
 };
 
-// TODO(joshua.spisak): functions to create this struct and to free it at end
+// creates a ProgramState struct and populates defualt values
 struct ProgramState *createProgramState() {
     struct ProgramState *new_state = mmap(NULL, sizeof(struct ProgramState), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, 0, 0);
     new_state->visitors_arrived = create_sem(0);
@@ -167,6 +168,7 @@ struct ProgramState *createProgramState() {
     return new_state;
 }
 
+// frees a ProgramState struct
 void freeProgramState(struct ProgramState *state) {
     free_sem(state->visitors_arrived);
     free_sem(state->opening_sem);
@@ -194,7 +196,7 @@ int visitor_guide_id;
 void visitorArrives() {
     int need_sem_again = 0;
     down(state->visitors_present_sem);
-    // sample visitor_guide_id once at time of arrival
+    // sample visitor_guide_id once at time of arrival (to correct order)
     visitor_guide_id = state->visitor_id++;
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     state->visitors_pending += 1;
@@ -222,13 +224,6 @@ void visitorArrives() {
 }
 
 // Reqs:
-// [x] must be called after tourguideArrives
-// [x] must print "Tour guide %d opens the museum for tours at time %d."
-void openMuseum() {
-    printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
-}
-
-// Reqs:
 // [x] must block until there is also a visitor
 // [x] called by tour guide process
 // [x] must wait if museum is closed
@@ -242,27 +237,6 @@ void tourguideArrives() {
     visitor_guide_id = state->guide_id++;
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_present_sem);
-    down(state->opening_sem); // protect museum opening
-    if(state->museum_opened == 0) { // will only happen once
-        if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
-            up(state->opening_sem);
-            up(state->tour_guides);
-            exit(0);
-        }
-        down(state->visitors_arrived);
-        state->museum_opened = 1;
-        openMuseum();
-    }
-    up(state->opening_sem);
-
-
-
-    down(state->visitors_present_sem);
-    state->just_incremented = 1;
-    up(state->visitors_present_sem);
-    int i;
-    for(i = 0; i < 10; ++i)
-        up(state->visitor_slots); // Provide 10 slots for visitors
 }
 
 // Reqs:
@@ -275,6 +249,24 @@ void tourMuseum() {
     visitor_guide_id = state->tour_visitor_id++;
     printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
     sleep(2);
+}
+
+// Reqs:
+// [x] must be called after tourguideArrives
+// [x] must print "Tour guide %d opens the museum for tours at time %d."
+void openMuseum() {
+    down(state->opening_sem); // protect museum opening
+    if(state->museum_opened == 0) { // will only happen once
+        if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
+            up(state->opening_sem);
+            up(state->tour_guides);
+            exit(0);
+        }
+        down(state->visitors_arrived);
+        state->museum_opened = 1;
+        printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
+    }
+    up(state->opening_sem);
 }
 
 // Reqs:
@@ -376,6 +368,13 @@ void tourguideProcess() {
         if(fork() == 0) {
             visitor_guide_id = i + 1;
             tourguideArrives();
+            openMuseum();
+            down(state->visitors_present_sem);
+            state->just_incremented = 1;
+            int i;
+            for(i = 0; i < 10; ++i)
+                up(state->visitor_slots); // Provide 10 slots for visitors
+            up(state->visitors_present_sem);
             tourguideLeaves();
             exit(0);
         } else {
@@ -395,6 +394,7 @@ int main(int argc, char** argv) {
     // init time to program start
     get_time();
     state = createProgramState();
+    // we assume we do in fact get these arguments... even though we don't care what order we get them in
     get_int_arg(argc, argv, "-m", &state->visitor_count);
     get_int_arg(argc, argv, "-k", &state->tour_guide_count);
     get_int_arg(argc, argv, "-pv", &state->prob_visitor);
@@ -406,7 +406,6 @@ int main(int argc, char** argv) {
     state->remaining_tour_guides = state->tour_guide_count;
     state->remaining_visitors = state->visitor_count;
 
-    // museum is currently empty...
     printf("The museum is now empty.\n");
     int pid = fork();
     if(pid == 0) {
