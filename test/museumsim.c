@@ -259,7 +259,7 @@ void tourguideArrives() {
     state->just_incremented = 1;
     up(state->visitors_present_sem);
     int i;
-    for(i = 0; i < 9; ++i)
+    for(i = 0; i < 10; ++i)
         up(state->visitor_slots); // Provide 10 slots for visitors
 }
 
@@ -290,19 +290,19 @@ void visitorLeaves() {
 }
 
 // Reqs:
-// [ ] tour guide cannot leave museum until all visitors in museum leave
-// [ ] prints "Tour guide %d leaves the museum at time %d"
+// [x] tour guide cannot leave museum until all visitors in museum leave
+// [x] prints "Tour guide %d leaves the museum at time %d"
 void tourguideLeaves() {
     down(state->visitors_present_sem);
     while(1) {
+        // catches when visitors have just been woken up but havent gotten the chance
+        // to increment visitors present
         int visitors_pending = (state->visitors_pending > 0 && state->just_incremented);
-        // printf("B%d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
         if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
             while(get_value(state->visitor_slots) > 0) {
                 down(state->visitor_slots);
             }
-            // printf("A: %d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
             break;
         }
         state->waiting_guides += 1;
@@ -364,8 +364,8 @@ void visitorProcess() {
 
 // Reqs:
 // [x] creates k tour guide processes
-// [ ] when a tour guide arrives there is a pg chance that another tour guide is immediately following them
-// [ ] when a tour guide does not arrive there is a dg second delay before the next tour guide arrives
+// [x] when a tour guide arrives there is a pg chance that another tour guide is immediately following them
+// [x] when a tour guide does not arrive there is a dg second delay before the next tour guide arrives
 void tourguideProcess() {
     srand(state->seed_guide);
     int i;
