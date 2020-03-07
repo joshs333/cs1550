@@ -133,6 +133,8 @@ struct ProgramState {
     int tour_guides_present;
     int visitor_id;
     int guide_id;
+    int remaining_tour_guides;
+    int remaining_visitors;
     struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
     struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
     struct cs1550_sem *opening_sem; // protects museum_opened
@@ -158,6 +160,7 @@ struct ProgramState *createProgramState() {
     new_state->tour_guides_present = 0;
     new_state->visitor_id = 0;
     new_state->guide_id = 0;
+    new_state->remaining_tour_guides = 0;
     return new_state;
 }
 
@@ -193,18 +196,22 @@ void visitorArrives() {
     visitor_guide_id = state->visitor_id++;
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_arrived);
-    state->visitors_pending += 1;
     if(get_value(state->visitor_slots) <= 0) {
         need_sem_again = 1;
         up(state->visitors_present_sem); // free this semaphore
     }
     // will not be available until museum is open and a tour guide has arrived
     // can only be upped if there are available visitor slots (max has not been reached)
-    down(state->visitor_slots); 
+    down(state->visitor_slots);
 
     if(need_sem_again)
         down(state->visitors_present_sem);
-    state->visitors_pending -= 1;
+
+    if(state->remaining_tour_guides == 0) {
+        up(state->visitors_present_sem);
+        exit(0); // We should exit now because there will be no more tours
+    }
+    state->remaining_visitors -= 1;
     state->visitors_present += 1;
     up(state->visitors_present_sem);
 }
@@ -232,6 +239,10 @@ void tourguideArrives() {
     up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
     if(!state->museum_opened) { // will only happen once
+        if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
+            up(state->opening_sem);
+            exit(0);
+        }
         down(state->visitors_arrived);
         state->museum_opened = 1;
         openMuseum();
@@ -274,14 +285,7 @@ void visitorLeaves() {
 // [ ] prints "Tour guide %d leaves the museum at time %d"
 void tourguideLeaves() {
     down(state->visitors_present_sem);
-    while(state->visitors_present > 0) {
-        state->waiting_guides += 1;
-        up(state->visitors_present_sem);
-        // waits for visitor_count to go to 0
-        down(state->empty_museum);
-        down(state->visitors_present_sem);
-        // between waking and getting the visitors_present_sem, more visitors may have entered
-        // so we will check again....
+    while(1) {
         if(state->visitors_present == 0) {
             // Remove tour guide slots
             while(get_value(state->visitor_slots) > 0) {
@@ -289,12 +293,24 @@ void tourguideLeaves() {
             }
             break;
         }
+        state->waiting_guides += 1;
         up(state->visitors_present_sem);
+        // waits for visitor_count to go to 0
+        down(state->empty_museum);
+        down(state->visitors_present_sem);
+        // between waking and getting the visitors_present_sem, more visitors may have entered
+        // so we will check again at the top of the loop...
     }
     printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time());
     state->tour_guides_present -= 1;
+    state->remaining_tour_guides -= 1;
     if(state->tour_guides_present == 0)
         printf("The museum is now empty.\n");
+    if(state->remaining_tour_guides == 0) {
+        int i = 0;
+        for(i = 0; i < state->remaining_visitors; ++i) // this can overshoot...
+            up(state->visitor_slots); // wake the waiting visitors so they can exit
+    }
     up(state->tour_guides);
     up(state->visitors_present_sem);
 }
@@ -304,9 +320,9 @@ void tourguideLeaves() {
 
 // Reqs:
 // [x] creates m visitor processes
-// [ ] when a visitor arrives there is a pv (70%) chance that another visitor will arrive directly after
-// [ ] if no visitor arrives there is a dv second wait until the next visitor arrives
-// [ ] first visitor always arrives a time 0
+// [x] when a visitor arrives there is a pv (eg 70%) chance that another visitor will arrive directly after
+// [x] if no visitor arrives there is a dv second wait until the next visitor arrives
+// [x] first visitor always arrives a time 0
 //
 // Needs:
 //   m (number of visitors)
@@ -372,6 +388,8 @@ int main(int argc, char** argv) {
     get_int_arg(argc, argv, "-pg", &state->prob_guide);
     get_int_arg(argc, argv, "-dg", &state->delay_guide);
     get_int_arg(argc, argv, "-sg", &state->seed_guide);
+    state->remaining_tour_guides = state->tour_guide_count;
+    state->remaining_visitors = state->visitor_count;
 
     // museum is currently empty...
     printf("The museum is now empty.\n");

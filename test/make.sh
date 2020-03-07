@@ -3,4 +3,8 @@ if [ -e build/ ]; then
 fi
 mkdir build/
 
-gcc -m32 -o build/museumsim museumsim.c -lpthread -D USE_PTHREAD
+if [ ! -z "$1" ]; then
+  gcc -m32 -o build/museumsim museumsim.c -lpthread -D USE_PTHREAD
+else
+  gcc -m32 -o build/museumsim museumsim.c 
+fi
