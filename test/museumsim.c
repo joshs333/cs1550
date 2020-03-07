@@ -155,7 +155,7 @@ struct ProgramState *createProgramState() {
     new_state->empty_museum = create_sem(0);
     new_state->visitors_present = 0;
     new_state->tour_guides_present = 0;
-    new_state->tour_guides_ending = 0;
+    new_state->tour_guides_pending = 0;
     new_state->visitors_pending = 0;
     new_state->visitor_slots_available = 0;
     new_state->remaining_visitors = 0;
@@ -214,7 +214,7 @@ void visitorArrives() {
     state->visitors_pending -= 1;
     state->visitor_slots_available -= 1;
     state->visitors_present += 1;
-    state->tour_guide_pending = 0;
+    state->tour_guides_pending = 0;
     up(state->general_state_sem);
 }
 
@@ -259,7 +259,13 @@ void openMuseum() {
     //     up(state->closing_sem);
     //     down(state->general_state_sem);
     // }
-    state->tour_guide_pending = 1;
+    if(state->remaining_visitors <= 0) {
+        up(state->general_state_sem);
+        up(state->opening_sem);
+        up(state->tour_guides);
+        exit(0);
+    }
+    state->tour_guides_pending = 1;
     state->tour_guides_present += 1;
     if(state->tour_guides_present <= 1) {
         up(state->general_state_sem);
@@ -282,6 +288,7 @@ void visitorLeaves() {
     down(state->general_state_sem);
     printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time());
     state->visitors_present -= 1;
+    state->remaining_visitors -= 1;
     if(state->visitors_present == 0) {
         // alert the tour guides that all the visitors have left
         up(state->empty_museum);
@@ -298,15 +305,15 @@ void tourguideLeaves() {
     while(1) {
         // catches when visitors have just been woken up but havent gotten the chance
         // to increment visitors present
-        int visitors_pending = (state->visitors_pending > 0 && state->tour_guide_pending);
+        int visitors_pending = (state->visitors_pending > 0 && state->tour_guides_pending);
         if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
             while(state->visitor_slots_available > 0) {
+                state->visitor_slots_available -= 1;
                 down(state->visitor_slots);
             }
             break;
         }
-        state->waiting_guides += 1;
         up(state->general_state_sem);
         // waits for visitor_count to go to 0
         down(state->empty_museum);
@@ -425,7 +432,7 @@ int main(int argc, char** argv) {
     } else {
         pid = fork();
         if(pid == 0) {
-            visitorProcesSpawner();
+            visitorProcessSpawner();
         } else {
             wait(NULL);
             wait(NULL);
