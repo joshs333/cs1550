@@ -135,6 +135,7 @@ struct ProgramState {
     int guide_id;
     int remaining_tour_guides;
     int remaining_visitors;
+    int tour_guide_just_arrived;
     struct cs1550_sem *visitors_present_sem; // protects visitors_present and waiting_guides
     struct cs1550_sem *visitors_arrived; // used to signal when visitors arrive
     struct cs1550_sem *opening_sem; // protects museum_opened
@@ -161,6 +162,8 @@ struct ProgramState *createProgramState() {
     new_state->visitor_id = 0;
     new_state->guide_id = 0;
     new_state->remaining_tour_guides = 0;
+    new_state->visitors_pending = 0;
+    new_state->tour_guide_just_arrived = 0;
     return new_state;
 }
 
@@ -194,8 +197,9 @@ void visitorArrives() {
     down(state->visitors_present_sem);
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->visitor_id++;
+    state->visitors_pending += 1;
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
-    up(state->visitors_arrived);
+    up(state->visitors_arrived); // alerts the tour guide that visitors have arrived.
     if(get_value(state->visitor_slots) <= 0) {
         need_sem_again = 1;
         up(state->visitors_present_sem); // free this semaphore
@@ -211,6 +215,7 @@ void visitorArrives() {
         up(state->visitors_present_sem);
         exit(0); // We should exit now because there will be no more tours
     }
+    state->visitors_pending -= 1;
     state->remaining_visitors -= 1;
     state->visitors_present += 1;
     up(state->visitors_present_sem);
@@ -235,12 +240,14 @@ void tourguideArrives() {
     state->tour_guides_present += 1;
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->guide_id++;
+    state->tour_guide_just_arrived = 1;
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
     if(!state->museum_opened) { // will only happen once
         if(state->remaining_visitors == 0) { // if there are no visitors then of course the museum will never open
             up(state->opening_sem);
+            up(state->tour_guides);
             exit(0);
         }
         down(state->visitors_arrived);
@@ -286,7 +293,8 @@ void visitorLeaves() {
 void tourguideLeaves() {
     down(state->visitors_present_sem);
     while(1) {
-        if(state->visitors_present == 0) {
+        int visitors_pending = (state->visitors_pending > 0 && get_value(state->visitor_slots) > 0);
+        if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
             while(get_value(state->visitor_slots) > 0) {
                 down(state->visitor_slots);
