@@ -240,7 +240,6 @@ void tourguideArrives() {
     state->tour_guides_present += 1;
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->guide_id++;
-    state->tour_guide_just_arrived = 1;
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_present_sem);
     down(state->opening_sem); // protect museum opening
@@ -316,7 +315,7 @@ void tourguideLeaves() {
         printf("The museum is now empty.\n");
     if(state->remaining_tour_guides == 0) {
         int i = 0;
-        for(i = 0; i < state->remaining_visitors; ++i) // this can overshoot...
+        for(i = 0; i < state->remaining_visitors + 10; ++i) // this can overshoot...
             up(state->visitor_slots); // wake the waiting visitors so they can exit
     }
     up(state->tour_guides);
@@ -389,7 +388,7 @@ int main(int argc, char** argv) {
     get_time();
     state = createProgramState();
     get_int_arg(argc, argv, "-m", &state->visitor_count);
-    get_int_arg(argc, argv, "-t", &state->tour_guide_count);
+    get_int_arg(argc, argv, "-k", &state->tour_guide_count);
     get_int_arg(argc, argv, "-pv", &state->prob_visitor);
     get_int_arg(argc, argv, "-dv", &state->delay_visitor);
     get_int_arg(argc, argv, "-sv", &state->seed_visitor);
