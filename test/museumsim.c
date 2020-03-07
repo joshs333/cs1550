@@ -226,6 +226,7 @@ void visitorArrives() {
 // [x] must print "Tour guide %d opens the museum for tours at time %d."
 void openMuseum() {
     printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
+    sleep(1);
 }
 
 // Reqs:
