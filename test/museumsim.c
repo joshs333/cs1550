@@ -139,6 +139,7 @@ struct ProgramState *createProgramState() {
     new_state->opening_sem = create_sem(1);
     new_state->visitor_slots = create_sem(0);
     new_state->tour_guides = create_sem(2);
+    new_state->museum_opened = 0;
     return new_state;
 }
 
@@ -158,7 +159,7 @@ struct ProgramState *state;
 int visitor_guide_id;
 
 // Reqs:
-// [ ] must block until there is also a tour guide
+// [x] must block until there is also a tour guide
 // [ ] called by visitor process
 // [ ] must wait if museum is closed
 // [ ] must wait if there is the max # of visitors has been reached
@@ -167,36 +168,27 @@ int visitor_guide_id;
 void visitorArrives() {
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_arrived);
-    // lock(visitors_arrived);
-    // visitors_arrived = true;
-    // unlock(visitors_arrived);
-    // // Tour slots will not be populated until museum is open and tourguideArrives, etc...
-    // down(tour_slots);
-
-    // lock(tour_slots_used);
-    // ++tour_slots_used;
-    // unlock(tour_slots_used);
+    down(state->visitor_slots);
 }
 
 // Reqs:
-// [ ] must be called after tourguideArrives
-// [ ] must print "Tour guide %d opens the museum for tours at time %d."
+// [x] must be called after tourguideArrives
+// [x] must print "Tour guide %d opens the museum for tours at time %d."
 void openMuseum() {
     printf("Tour guide %d opens the museum for tours at time %d.\n", visitor_guide_id, get_time());
 }
 
 // Reqs:
-// [ ] must block until there is also a visitor
-// [ ] called by tour guide process
-// [ ] must wait if museum is closed
-// [ ] must wait if there are already 2 tour guides in the museum
-// [ ] must print "Tour guide %d arrives at time %d" at arrival
+// [x] must block until there is also a visitor
+// [x] called by tour guide process
+// [x] must wait if museum is closed
+// [x] must wait if there are already 2 tour guides in the museum
+// [x] must print "Tour guide %d arrives at time %d" at arrival
 void tourguideArrives() {
     printf("Tour guide %d arrives at time %d.\n", visitor_guide_id, get_time());
-    down(state->tour_guides);
-    down(state->opening_sem);
-    if(!state->museum_opened) {
-        // will only happen once
+    down(state->tour_guides); // wait if there are already 2
+    down(state->opening_sem); // protect museum opening
+    if(!state->museum_opened) { // will only happen once
         down(state->visitors_arrived);
         state->museum_opened = 1;
         openMuseum();
@@ -205,14 +197,14 @@ void tourguideArrives() {
 
     int i;
     for(i = 0; i < 10; ++i)
-        up(state->visitor_slots);
+        up(state->visitor_slots); // Provide 10 slots for visitors
 }
 
 // Reqs:
-// [ ] called after visitorArrives
-// [ ] sleeps for two seconds (how long the tour takes)
-// [ ] must not block other tourists in the museum
-// [ ] must print "Visitor %d tours the museum at time %d."
+// [x] called after visitorArrives
+// [x] sleeps for two seconds (how long the tour takes)
+// [x] must not block other tourists in the museum
+// [x] must print "Visitor %d tours the museum at time %d."
 void tourMuseum() {
     printf("Visitor %d tours the museum at time %d.\n", visitor_guide_id, get_time());
     sleep(2);
@@ -222,13 +214,7 @@ void tourMuseum() {
 // [x] must print "Visitor %d leaves the museum at time %d"
 void visitorLeaves() {
     printf("Visitor %d leaves the museum at time %d\n", visitor_guide_id, get_time());
-    // lock(tour_slots_used);
-    // --tour_slots_used;
-    // if(tour_slots_used == 0)
-    //     up(visitors_left);
-    //     set tour_slots to 0
-    //     sem->value = 0
-    // unlock(tour_slots_used);
+    // Provide mechanism to alert tourguide that noone is present
 }
 
 // Reqs:
@@ -236,7 +222,8 @@ void visitorLeaves() {
 // [ ] prints "Tour guide %d leaves the museum at time %d"
 void tourguideLeaves() {
     // waits for visitor_count to go to 0
-    // all tours slots used or all visitors have left (uped a mutex?)
+
+    printf("Tour guide %d leaves the museum at time %d\n", visitor_guide_id, get_time());
     up(state->tour_guides);
 }
 
@@ -314,6 +301,8 @@ int main(int argc, char** argv) {
     get_int_arg(argc, argv, "-dg", &state->delay_guide);
     get_int_arg(argc, argv, "-sg", &state->seed_guide);
 
+    // museum is currently empty...
+    printf("The museum is now empty.\n");
     int pid = fork();
     if(pid == 0) {
         tourguideProcess();
@@ -326,6 +315,7 @@ int main(int argc, char** argv) {
             wait(NULL);
         }
     }
+    printf("The museum is now empty.\n");
 
     freeProgramState(state);
 }
