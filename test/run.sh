@@ -1,1 +1,1 @@
-./build/museumsim -m 10 -t 10 -pv 50 -dv 1 -sv 2 -pg 50 -dg 1 -sg 4
+./build/museumsim -m 32 -k 4 -pv 100 -dv 0 -sv 1 -pg 0 -dg 3 -sg 2

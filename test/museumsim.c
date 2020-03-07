@@ -198,7 +198,6 @@ void visitorArrives() {
     // sample visitor_guide_id at time of arrival
     visitor_guide_id = state->visitor_id++;
     state->visitors_pending += 1;
-    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     up(state->visitors_arrived); // alerts the tour guide that visitors have arrived.
     if(get_value(state->visitor_slots) <= 0) {
         need_sem_again = 1;
@@ -215,6 +214,7 @@ void visitorArrives() {
         up(state->visitors_present_sem);
         exit(0); // We should exit now because there will be no more tours
     }
+    printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
     state->visitors_pending -= 1;
     state->remaining_visitors -= 1;
     state->visitors_present += 1;
