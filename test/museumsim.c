@@ -296,7 +296,7 @@ void tourguideLeaves() {
     down(state->visitors_present_sem);
     while(1) {
         int visitors_pending = (state->visitors_pending > 0 && state->just_incremented);
-        printf("B%d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
+        // printf("B%d, %d\n", state->visitors_pending, get_value(state->visitor_slots));
         if(state->visitors_present == 0 && !visitors_pending) {
             // Remove tour guide slots
             while(get_value(state->visitor_slots) > 0) {
