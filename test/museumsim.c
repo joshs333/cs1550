@@ -267,7 +267,7 @@ void openMuseum() {
     }
     state->tour_guides_pending = 1;
     state->tour_guides_present += 1;
-    if(state->tour_guides_present <= 1) {
+    if(state->tour_guides_present <= 1 && state->visitors_pending <= 0) {
         up(state->general_state_sem);
         down(state->visitors_arrived);
         down(state->general_state_sem);
