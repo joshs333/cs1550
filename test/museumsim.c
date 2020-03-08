@@ -141,6 +141,8 @@ struct ProgramState {
     struct cs1550_sem *visitor_slots; // used to regulate visitor access to the museum
     struct cs1550_sem *tour_guides; // used to prevent more than 2 tour guides from entering at once
     struct cs1550_sem *empty_museum; // used to alert the tour guides when the musem is emptied
+    struct cs1550_sem *visitor_arrival; // prevents issues with opening by only allowing one visitor process
+                                        // run entry logic at a time
 };
 
 // creates a ProgramState struct and populates defualt values
@@ -153,6 +155,7 @@ struct ProgramState *createProgramState() {
     new_state->visitor_slots = create_sem(0);
     new_state->tour_guides = create_sem(2);
     new_state->empty_museum = create_sem(0);
+    new_state->visitor_arrival = create_sem(1);
     new_state->visitors_present = 0;
     new_state->tour_guides_present = 0;
     new_state->tour_guides_pending = 0;
@@ -190,8 +193,9 @@ int visitor_guide_id;
 // [x] first visitor always arrives a time 0
 void visitorArrives() {
     int need_sem_again = 0;
-    down(state->general_state_sem);
     printf("Visitor %d arrives at time %d.\n", visitor_guide_id, get_time());
+    down(state->visitor_arrival);
+    down(state->general_state_sem);
     state->visitors_pending += 1;
     if(state->visitor_slots_available <= 0) {
         need_sem_again = 1;
@@ -199,7 +203,9 @@ void visitorArrives() {
             up(state->visitors_arrived);
         up(state->general_state_sem); // free this semaphore
                                       // so other processes can use it to up visitor_slots
+
     }
+
     // will not be available until museum is open and a tour guide has arrived
     // can only be upped if there are available visitor slots (max has not been reached)
     down(state->visitor_slots);
@@ -212,10 +218,11 @@ void visitorArrives() {
         exit(0); // We should exit now because there will be no more tours
     }
     state->visitors_pending -= 1;
-    state->visitor_slots_available -= 1;
     state->visitors_present += 1;
     state->tour_guides_pending = 0;
+    state->visitor_slots_available -= 1;
     up(state->general_state_sem);
+    up(state->visitor_arrival);
 }
 
 // Reqs:
