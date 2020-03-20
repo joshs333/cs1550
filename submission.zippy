@@ -1,0 +1,11 @@
+location: "xv6-public"
+files:
+- syscall.h
+- syscall.c
+- user.h
+- usys.S
+- proc.h
+- proc.c
+- sysproc.c
+- trap.c
+output: "lab3.zip"
