@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 50;
 
   release(&ptable.lock);
 
@@ -322,7 +323,9 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p = 0;
+  struct proc *np = 0;
+  struct proc *last_p = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -332,10 +335,41 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
+    if(last_p == 0) {
+      last_p = ptable.proc;
+    }
+
+    // Start at the last processes and loop unti I reach it again
+    int b = 0;
+    p = 0;
+    np = last_p + 1;
+    while(1) {
+      // triggers the first cycle, breaks the second time
+      if(np == last_p + 1) {
+        if(b == 1)
+          break;
+        b = 1;
+      }
+      // loop to the begining
+      if(np >= &ptable.proc[NPROC]) {
+        np = ptable.proc;
+      }
+      if(np->state != RUNNABLE) {
+        ++np;
+        continue;
+      }
+
+      if(p == 0)
+        p = np;
+
+      if(np->priority < p->priority)
+        p = np;
+
+      ++np;
+    }
+
+    if(p != 0) {
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -349,6 +383,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      last_p = p;
     }
     release(&ptable.lock);
 
