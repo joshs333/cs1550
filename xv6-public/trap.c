@@ -8,6 +8,9 @@
 #include "traps.h"
 #include "spinlock.h"
 
+int
+mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
+
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
@@ -30,6 +33,36 @@ void
 idtinit(void)
 {
   lidt(idt, sizeof(idt));
+}
+
+int
+lazyallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+{
+  char *mem;
+  uint a;
+
+  if(newsz >= KERNBASE)
+    return 0;
+  if(newsz < oldsz)
+    return oldsz;
+
+  a = PGROUNDUP(oldsz);
+  for(; a < newsz; a += PGSIZE){
+    mem = kalloc();
+    if(mem == 0){
+      cprintf("allocuvm out of memory\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+      cprintf("allocuvm out of memory (2)\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      kfree(mem);
+      return 0;
+    }
+  }
+  return newsz;
 }
 
 //PAGEBREAK: 41
@@ -77,6 +110,26 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+
+  case T_PGFLT:
+    { // add '{' so we can declare variables
+      struct proc *p = myproc();
+      unsigned int address = rcr2();
+      // cprintf("I just had a page fault! :) (address: 0x%x, sz: 0x%x)\n", address, p->sz);
+
+      char *mem = kalloc();
+      if(mem != 0){
+        memset(mem, 0, PGSIZE);
+        if(mappages(p->pgdir, (char*)PGROUNDDOWN(address), PGSIZE, V2P(mem), PTE_W|PTE_U) >= 0)
+          break; // success! Break!
+        
+        // mappages failed
+        cprintf("allocuvm out of memory\n");
+        kfree(mem);
+      }
+      // kalloc failed
+      cprintf("allocuvm out of memory (2)\n");
+    }
 
   //PAGEBREAK: 13
   default:
