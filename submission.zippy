@@ -1,0 +1,6 @@
+location: "xv6-public"
+files:
+- sysproc.c
+- trap.c
+- vm.c
+output: "lab4.zip"
