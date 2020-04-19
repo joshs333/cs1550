@@ -1,0 +1,252 @@
+Attemting: ./vmsim_prog -n 8 -a opt test/gcc.trace
+Algorithm: OPT
+Number of frames: 8
+Total memory accesses: 515683
+Total page faults: 13328
+Total writes to disk: 4381
+
+Attemting: ./vmsim_prog -n 16 -a opt test/gcc.trace
+Algorithm: OPT
+Number of frames: 16
+Total memory accesses: 515683
+Total page faults: 3020
+Total writes to disk: 1021
+
+Attemting: ./vmsim_prog -n 32 -a opt test/gcc.trace
+Algorithm: OPT
+Number of frames: 32
+Total memory accesses: 515683
+Total page faults: 491
+Total writes to disk: 217
+
+Attemting: ./vmsim_prog -n 64 -a opt test/gcc.trace
+Algorithm: OPT
+Number of frames: 64
+Total memory accesses: 515683
+Total page faults: 318
+Total writes to disk: 131
+
+Attemting: ./vmsim_prog -n 8 -a lru test/gcc.trace
+Algorithm: LRU
+Number of frames: 8
+Total memory accesses: 515683
+Total page faults: 23027
+Total writes to disk: 7464
+
+Attemting: ./vmsim_prog -n 16 -a lru test/gcc.trace
+Algorithm: LRU
+Number of frames: 16
+Total memory accesses: 515683
+Total page faults: 6172
+Total writes to disk: 2226
+
+Attemting: ./vmsim_prog -n 32 -a lru test/gcc.trace
+Algorithm: LRU
+Number of frames: 32
+Total memory accesses: 515683
+Total page faults: 736
+Total writes to disk: 344
+
+Attemting: ./vmsim_prog -n 64 -a lru test/gcc.trace
+Algorithm: LRU
+Number of frames: 64
+Total memory accesses: 515683
+Total page faults: 409
+Total writes to disk: 169
+
+Attemting: ./vmsim_prog -n 8 -a second test/gcc.trace
+Algorithm: SECOND
+Number of frames: 8
+Total memory accesses: 515683
+Total page faults: 23680
+Total writes to disk: 7621
+
+Attemting: ./vmsim_prog -n 16 -a second test/gcc.trace
+Algorithm: SECOND
+Number of frames: 16
+Total memory accesses: 515683
+Total page faults: 6517
+Total writes to disk: 2288
+
+Attemting: ./vmsim_prog -n 32 -a second test/gcc.trace
+Algorithm: SECOND
+Number of frames: 32
+Total memory accesses: 515683
+Total page faults: 797
+Total writes to disk: 356
+
+Attemting: ./vmsim_prog -n 64 -a second test/gcc.trace
+Algorithm: SECOND
+Number of frames: 64
+Total memory accesses: 515683
+Total page faults: 412
+Total writes to disk: 166
+
+Attemting: ./vmsim_prog -n 8 -a opt test/gzip.trace
+Algorithm: OPT
+Number of frames: 8
+Total memory accesses: 481044
+Total page faults: 39874
+Total writes to disk: 39844
+
+Attemting: ./vmsim_prog -n 16 -a opt test/gzip.trace
+Algorithm: OPT
+Number of frames: 16
+Total memory accesses: 481044
+Total page faults: 39856
+Total writes to disk: 39825
+
+Attemting: ./vmsim_prog -n 32 -a opt test/gzip.trace
+Algorithm: OPT
+Number of frames: 32
+Total memory accesses: 481044
+Total page faults: 39856
+Total writes to disk: 39809
+
+Attemting: ./vmsim_prog -n 64 -a opt test/gzip.trace
+Algorithm: OPT
+Number of frames: 64
+Total memory accesses: 481044
+Total page faults: 39856
+Total writes to disk: 39777
+
+Attemting: ./vmsim_prog -n 8 -a lru test/gzip.trace
+Algorithm: LRU
+Number of frames: 8
+Total memory accesses: 481044
+Total page faults: 39905
+Total writes to disk: 39864
+
+Attemting: ./vmsim_prog -n 16 -a lru test/gzip.trace
+Algorithm: LRU
+Number of frames: 16
+Total memory accesses: 481044
+Total page faults: 39883
+Total writes to disk: 39845
+
+Attemting: ./vmsim_prog -n 32 -a lru test/gzip.trace
+Algorithm: LRU
+Number of frames: 32
+Total memory accesses: 481044
+Total page faults: 39874
+Total writes to disk: 39822
+
+Attemting: ./vmsim_prog -n 64 -a lru test/gzip.trace
+Algorithm: LRU
+Number of frames: 64
+Total memory accesses: 481044
+Total page faults: 39874
+Total writes to disk: 39790
+
+Attemting: ./vmsim_prog -n 8 -a second test/gzip.trace
+Algorithm: SECOND
+Number of frames: 8
+Total memory accesses: 481044
+Total page faults: 39912
+Total writes to disk: 39866
+
+Attemting: ./vmsim_prog -n 16 -a second test/gzip.trace
+Algorithm: SECOND
+Number of frames: 16
+Total memory accesses: 481044
+Total page faults: 39888
+Total writes to disk: 39849
+
+Attemting: ./vmsim_prog -n 32 -a second test/gzip.trace
+Algorithm: SECOND
+Number of frames: 32
+Total memory accesses: 481044
+Total page faults: 39874
+Total writes to disk: 39822
+
+Attemting: ./vmsim_prog -n 64 -a second test/gzip.trace
+Algorithm: SECOND
+Number of frames: 64
+Total memory accesses: 481044
+Total page faults: 39874
+Total writes to disk: 39790
+
+Attemting: ./vmsim_prog -n 8 -a opt test/swim.trace
+Algorithm: OPT
+Number of frames: 8
+Total memory accesses: 303193
+Total page faults: 4417
+Total writes to disk: 2182
+
+Attemting: ./vmsim_prog -n 16 -a opt test/swim.trace
+Algorithm: OPT
+Number of frames: 16
+Total memory accesses: 303193
+Total page faults: 358
+Total writes to disk: 150
+
+Attemting: ./vmsim_prog -n 32 -a opt test/swim.trace
+Algorithm: OPT
+Number of frames: 32
+Total memory accesses: 303193
+Total page faults: 144
+Total writes to disk: 63
+
+Attemting: ./vmsim_prog -n 64 -a opt test/swim.trace
+Algorithm: OPT
+Number of frames: 64
+Total memory accesses: 303193
+Total page faults: 135
+Total writes to disk: 33
+
+Attemting: ./vmsim_prog -n 8 -a lru test/swim.trace
+Algorithm: LRU
+Number of frames: 8
+Total memory accesses: 303193
+Total page faults: 9387
+Total writes to disk: 5280
+
+Attemting: ./vmsim_prog -n 16 -a lru test/swim.trace
+Algorithm: LRU
+Number of frames: 16
+Total memory accesses: 303193
+Total page faults: 530
+Total writes to disk: 239
+
+Attemting: ./vmsim_prog -n 32 -a lru test/swim.trace
+Algorithm: LRU
+Number of frames: 32
+Total memory accesses: 303193
+Total page faults: 205
+Total writes to disk: 83
+
+Attemting: ./vmsim_prog -n 64 -a lru test/swim.trace
+Algorithm: LRU
+Number of frames: 64
+Total memory accesses: 303193
+Total page faults: 140
+Total writes to disk: 47
+
+Attemting: ./vmsim_prog -n 8 -a second test/swim.trace
+Algorithm: SECOND
+Number of frames: 8
+Total memory accesses: 303193
+Total page faults: 9916
+Total writes to disk: 4892
+
+Attemting: ./vmsim_prog -n 16 -a second test/swim.trace
+Algorithm: SECOND
+Number of frames: 16
+Total memory accesses: 303193
+Total page faults: 579
+Total writes to disk: 265
+
+Attemting: ./vmsim_prog -n 32 -a second test/swim.trace
+Algorithm: SECOND
+Number of frames: 32
+Total memory accesses: 303193
+Total page faults: 213
+Total writes to disk: 86
+
+Attemting: ./vmsim_prog -n 64 -a second test/swim.trace
+Algorithm: SECOND
+Number of frames: 64
+Total memory accesses: 303193
+Total page faults: 147
+Total writes to disk: 48
+

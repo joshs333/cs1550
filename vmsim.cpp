@@ -4,14 +4,16 @@
  * @author Joshua Spisak <jjs231@pitt.edu>
  * @note I had a lot of fun with templates with this lol. There is one
  *      particularly good usage of templates and one that could have been
- *      much more well done with just interfaces.
+ *      much more well done with just interfaces. Overall I just wanted to
+ *      challenge myself to use only templates rather than inheritance
+ *      for this.
  * @usage ./vmsim –n <numframes> -a <opt|lru|second> <tracefile>
  *****************************************************************************/
 #include <cstdio> // printf()
 #include <string> // string
 #include <fstream> // ifstream
 #include <vector> // vector
-#include <map> // map
+#include <unordered_map> // unordered_map
 #include <exception> // runtime_error
 #include <queue> // queue
 
@@ -146,7 +148,7 @@ public:
         typename Algorithm::FrameInfo info;
     };
     //! Map of frame_id -> Frame info
-    typedef std::map<int, Frame> FrameMap;
+    typedef std::unordered_map<int, Frame> FrameMap;
 
     /**
      * @brief creates a page table with a given frame count
@@ -187,7 +189,6 @@ public:
             it = frame_map_.find(frame_id);
             it->second.dirty = false;
             it->second.frame_id = frame_id;
-            Algorithm::insert(it->second, algorithm_state_);
         } else {
             ++stats_.hits;
         }
@@ -199,7 +200,7 @@ public:
         } else if (trace.mode == "l") {
             ++stats_.loads;
         } else {
-            printf("WARNING: Invalid mode- %s\n", trace.mode.c_str());
+            std::printf("WARNING: Invalid mode- %s\n", trace.mode.c_str());
         }
         Algorithm::update(it->second, algorithm_state_);
     } /* execute */
@@ -239,13 +240,6 @@ public:
      * @param state state that can be maintained in the page table
      **/
     static unsigned int nextEviction(PageTable<IAlgorithm>::FrameMap& frame_map, State& state)
-    { throw std::runtime_error("Interface not implemented"); }
-    /**
-     * @brief inserts a new frame into the page table
-     * @param frame the frame to be inserted
-     * @param state state that can be maintained in the page table
-     **/
-    static void insert(PageTable<IAlgorithm>::Frame& frame, State& state)
     { throw std::runtime_error("Interface not implemented"); }
     /**
      * @brief updates a given frame on an access
@@ -289,12 +283,6 @@ public:
         }
         return ret_val;
     };
-    /**
-     * @brief Unused for LRU Algorithm
-     * @param frame the frame to be inserted
-     * @param state state that can be maintained in the page table
-     **/
-    static void insert(PageTable<LRUAlgorithm>::Frame& frame, State& state) { }
     /**
      * @brief updates a frames stamp when it is accessed
      * @param frame the frame to update
@@ -350,13 +338,6 @@ public:
         return result;
     }
     /**
-     * @brief inserts a new frame into the page table
-     * @param frame the frame to be inserted
-     * @param state state that can be maintained in the page table
-     **/
-    static void insert(PageTable<SecondAlgorithm>::Frame& frame, State& state) {
-    }
-    /**
      * @brief updates a frames stamp when it is accessed
      * @param frame the frame to update
      * @param state maintains the current stamp in the state
@@ -385,7 +366,7 @@ public:
         //! Record of different frames and indexes of their next reference
         //! We could be more runtime efficient by remembering all
         //! references we traverse over
-        std::map<unsigned int, unsigned int> frame_indexes;
+        std::unordered_map<unsigned int, unsigned int> frame_indexes;
         //! Where in the trace list we are
         unsigned int current_index = 0;
     };
@@ -514,7 +495,7 @@ int main(int argc, char** argv) {
         PageTable<SecondAlgorithm> table(args.num_frames);
         runTests(table, args, "SECOND");
     } else {
-        printf("ERROR: Unknown algorithm.");
+        std::printf("ERROR: Unknown algorithm.");
     }
     return 0;
 }
